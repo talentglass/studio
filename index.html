@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TalentGlass Studio</title>
+    <link rel="manifest" href="manifest.json">
+    
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(() => {});
+        }
+    </script>
+
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f0f3f6; color: #333; }
+        .container { max-width: 600px; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin: 20px auto; }
+        h2 { color: #2c3e50; margin-top: 0; border-bottom: 2px solid #f1f2f6; padding-bottom: 12px; }
+        #loginView { max-width: 400px; margin: 80px auto; text-align: center; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .input-box { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        
+        #studioView { display: none; }
+        .form-group { display: flex; flex-direction: column; margin-bottom: 15px; }
+        label { font-weight: bold; margin-bottom: 6px; color: #4a5568; font-size: 14px; }
+        select, input[type="number"], .script-input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; width: 100%; box-sizing: border-box; }
+        
+        .slide-card { background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .slide-card h3 { margin: 0 0 15px 0; color: #1e3a8a; font-size: 16px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 8px; }
+        
+        .btn { background-color: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: bold; width: 100%; box-sizing: border-box; }
+        #statusLogger { margin-top: 20px; padding: 15px; border-radius: 6px; display: none; font-weight: bold; font-size: 14px; background-color: #e0f2fe; border-left: 4px solid #0284c7; color: #0369a1; white-space: pre-line; }
+    </style>
+</head>
+<body>
+
+    <div id="loginView">
+        <h3 style="color: #2c3e50; margin-bottom: 20px;">Sign In to TalentGlass Studio</h3>
+        <input type="text" id="username" class="input-box" placeholder="Username">
+        <input type="password" id="password" class="input-box" placeholder="Password">
+        <button type="button" class="btn" onclick="validateCredentials()">Authenticate Studio</button>
+        <p id="loginError" style="color: #e11d48; display: none; margin-top: 15px; font-weight: bold; font-size: 13px;"></p>
+    </div>
+
+    <div id="studioView" class="container">
+        <h2>🎬 TalentGlass Studio</h2>
+        <p style="font-size: 12px; color: #64748b; margin-top: -5px; margin-bottom: 25px;">Logged in as: <strong style="color: #3b82f6;">suvanam</strong> | Framework Status: <span id="engineStatus" style="color:#d97706; font-weight:bold;">Initializing Background Threads...</span></p>
+        
+        <form id="studioForm">
+            <div class="form-group" style="background: #eff6ff; padding: 15px; border-radius: 8px; border: 1px dashed #bfdbfe;">
+                <label style="color:#1e40af;">🌍 Global AI Kokoro Voice Actor (Applies to all Scenarios):</label>
+                <select id="voiceProfile">
+                    <optgroup label="🇺🇸 American Accent - Female">
+                        <option value="af_bella" selected>af_bella (Bella - Warm & Crisp)</option>
+                        <option value="af_nicole">af_nicole (Nicole - Professional Narration)</option>
+                        <option value="af_sarah">af_sarah (Sarah - Bright & Clear)</option>
+                        <option value="af_sky">af_sky (Sky - Natural Pacing)</option>
+                    </optgroup>
+                    <optgroup label="🇺🇸 American Accent - Male">
+                        <option value="am_adam">am_adam (Adam - Deep & Authoritative)</option>
+                        <option value="am_michael">am_michael (Michael - Smooth Corporate)</option>
+                    </optgroup>
+                    <optgroup label="🇬🇧 British Accent">
+                        <option value="bf_emma">bf_emma (Emma - Elegant Female)</option>
+                        <option value="bm_george">bm_george (George - Clear Male)</option>
+                    </optgroup>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Number of Presentation Slides:</label>
+                <input type="number" id="totalSlides" min="1" max="10" value="1" oninput="generateSlideRows()">
+            </div>
+
+            <div id="slidesFormWrapper"></div>
+            
+            <button type="button" id="compileBtn" class="btn" style="background-color: #10b981; margin-top: 10px;" onclick="compileVideoOnDevice()" disabled>Awaiting Core Threads...</button>
+        </form>
+
+        <div id="statusLogger"></div>
+    </div>
+
+    <canvas id="renderCanvas" width="720" height="1280" style="display:none;"></canvas>
+
+    <script>
+        let kokoroWorker = null;
+
+        function validateCredentials() {
+            const userVal = document.getElementById("username").value;
+            const passVal = document.getElementById("password").value;
+            if (userVal === "suvanam" && passVal === "2026") {
+                document.getElementById("loginView").style.display = "none";
+                document.getElementById("studioView").style.display = "block";
+                generateSlideRows();
+                initializeKokoroWorkerPipeline();
+            } else {
+                document.getElementById("loginError").innerText = "❌ Access Denied: Invalid parameters.";
+                document.getElementById("loginError").style.display = "block";
+            }
+        }
+
+        // 🟢 FIX: DIRECT BASE64 DATA-URI WORKER (Bypasses local file restriction blocks completely)
+        function initializeKokoroWorkerPipeline() {
+            const workerCodeText = `
+                import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/+esm";
+                let speechPipeline = null;
+
+                self.onmessage = async (e) => {
+                    const { type, text, voice } = e.data;
+                    
+                    if (type === "INIT") {
+                        try {
+                            speechPipeline = await pipeline("text-to-speech", "Xenova/kokoro-82M-v1.0", { quantized: true });
+                            self.postMessage({ status: "READY" });
+                        } catch (err) {
+                            self.postMessage({ status: "ERROR", message: err.message });
+                        }
+                    }
+                    
+                    if (type === "GENERATE") {
+                        try {
+                            const output = await speechPipeline(text, { speaker_id: voice });
+                            if (output && output.audio) {
+                                self.postMessage({ status: "SUCCESS", audioChannelArray: output.audio, samplingRate: output.sampling_rate }, [output.audio.buffer]);
+                            } else {
+                                throw new Error("Vocal conversion structure error.");
+                            }
+                        } catch (err) {
+                            self.postMessage({ status: "GEN_FAIL", message: err.message });
+                        }
+                    }
+                };
+            `;
+
+            try {
+                // Encode raw worker script text to a safe base64 URL token layout string
+                const encodedWorkerUrl = "data:text/javascript;base64," + btoa(unescape(encodeURIComponent(workerCodeText)));
+                kokoroWorker = new Worker(encodedWorkerUrl, { type: "module" });
+                
+                kokoroWorker.postMessage({ type: "INIT" });
+                
+                kokoroWorker.onmessage = (e) => {
+                    const { status, message } = e.data;
+                    if (status === "READY") {
+                        document.getElementById("engineStatus").innerHTML = "⚡ Kokoro Engine Ready via Worker Threads";
+                        document.getElementById("engineStatus").style.color = "#16a34a";
+                        const compileBtn = document.getElementById("compileBtn");
+                        compileBtn.disabled = false;
+                        compileBtn.innerText = "Compile Cinematic Video";
+                    } else if (status === "ERROR") {
+                        document.getElementById("engineStatus").innerHTML = "❌ Thread Sync Error: " + message;
+                        document.getElementById("engineStatus").style.color = "#dc2626";
+                    }
+                };
+            } catch (workerFailError) {
+                document.getElementById("engineStatus").innerHTML = "❌ Pipeline Execution Denied: " + workerFailError.message;
+                document.getElementById("engineStatus").style.color = "#dc2626";
+            }
+        }
+
+        function generateSlideRows() {
+            const wrapper = document.getElementById('slidesFormWrapper');
+            const count = parseInt(document.getElementById('totalSlides').value) || 1;
+            wrapper.innerHTML = '';
+            
+            for (let i = 0; i < count; i++) {
+                const div = document.createElement('div');
+                div.className = 'slide-card';
+                div.innerHTML = `
+                    <h3>🎬 Scenario ${i + 1}</h3>
+                    
+                    <div class="form-group">
+                        <label>Cinematic Slow Transition Video Style:</label>
+                        <select class="transition-input">
+                            <option value="zoomIn" selected>Slow Ken Burns Zoom In (Cinematic Flow)</option>
+                            <option value="zoomOut">Slow Ken Burns Zoom Out (Deep Reveal)</option>
+                            <option value="panLeft">Slow Cinematic Pan Left</option>
+                            <option value="panRight">Slow Cinematic Pan Right</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Narration Text Script Paragraph:</label>
+                        <textarea class="script-input" rows="3" required>This is an elite presentation slide displaying beautiful automated text transitions with high quality output results from a single paragraph layer block.</textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Media File Picker:</label>
+                        <input type="file" class="media-input" accept="image/*" required>
+                    </div>
+                `;
+                wrapper.appendChild(div);
+            }
+        }
+
+        function drawVisualLayer(ctx, img, width, height, style, progress) {
+            const imgRatio = img.width / img.height;
+            const targetRatio = width / height;
+            let srcWidth, srcHeight, srcX, srcY;
+
+            if (imgRatio > targetRatio) {
+                srcHeight = img.height;
+                srcWidth = img.height * targetRatio;
+                srcX = (img.width - srcWidth) / 2;
+                srcY = 0;
+            } else {
+                srcWidth = img.width;
+                srcHeight = img.width / targetRatio;
+                srcX = 0;
+                srcY = (img.height - srcHeight) / 2;
+            }
+
+            ctx.save();
+            let scale = 1.0;
+            let moveX = 0;
+            let moveY = 0;
+
+            if (style === "zoomIn") {
+                scale = 1.0 + (progress * 0.28); 
+            } else if (style === "zoomOut") {
+                scale = 1.28 - (progress * 0.28); 
+            } else if (style === "panLeft") {
+                moveX = -(progress * 115); 
+            } else if (style === "panRight") {
+                moveX = (progress * 115);
+            }
+
+            ctx.translate(width / 2 + moveX, height / 2 + moveY);
+            ctx.scale(scale, scale);
+            ctx.translate(-width / 2, -height / 2);
+            ctx.drawImage(img, srcX, srcY, srcWidth, srcHeight, 0, 0, width, height);
+            ctx.restore();
+        }
+
+        function paintActiveTimelineFrame(ctx, slideDataArray, currentTimeSeconds) {
+            const targetWidth = 720;
+            const targetHeight = 1280;
+            ctx.clearRect(0, 0, targetWidth, targetHeight);
+
+            let activeIndex = -1;
+            for (let i = 0; i < slideDataArray.length; i++) {
+                if (currentTimeSeconds >= slideDataArray[i].startSampleTime && currentTimeSeconds <= slideDataArray[i].endSampleTime) {
+                    activeIndex = i;
+                    break;
+                }
+            }
+
+            if (activeIndex === -1) {
+                activeIndex = currentTimeSeconds >= slideDataArray[slideDataArray.length - 1].endSampleTime ? slideDataArray.length - 1 : 0;
+            }
+
+            const currentSlide = slideDataArray[activeIndex];
+            const slideElapsed = currentTimeSeconds - currentSlide.startSampleTime;
+            const timeRemainingInSlide = currentSlide.endSampleTime - currentTimeSeconds;
+
+            if (timeRemainingInSlide <= 2.0 && activeIndex < slideDataArray.length - 1) {
+                const nextSlide = slideDataArray[activeIndex + 1];
+                const transitionProgress = (2.0 - timeRemainingInSlide) / 2.0;
+
+                const currentProgress = Math.min(slideElapsed / currentSlide.duration, 1.0);
+                drawVisualLayer(ctx, currentSlide.img, targetWidth, targetHeight, currentSlide.transition, currentProgress);
+
+                ctx.save();
+                ctx.globalAlpha = transitionProgress;
+                const nextProgress = Math.min((currentTimeSeconds - nextSlide.startSampleTime) / nextSlide.duration, 1.0);
+                drawVisualLayer(ctx, nextSlide.img, targetWidth, targetHeight, nextSlide.transition, nextProgress);
+                ctx.restore();
+            } else {
+                const progress = Math.min(slideElapsed / currentSlide.duration, 1.0);
+                drawVisualLayer(ctx, currentSlide.img, targetWidth, targetHeight, currentSlide.transition, progress);
+            }
+        }
+
+        async function compileVideoOnDevice() {
+            const log = document.getElementById('statusLogger');
+            log.style.display = "block";
+            log.innerHTML = "⏳ Pre-processing scenario layers and assets...";
+
+            try {
+                const cards = document.querySelectorAll('.slide-card');
+                const totalSlides = cards.length;
+                const chosenVoiceActorKey = document.getElementById("voiceProfile").value;
+
+                let slideDataArray = [];
+                let overallAudioSamplesCount = 0;
+                let finalSamplingRate = 24000;
+
+                for (let idx = 0; idx < totalSlides; idx++) {
+                    const card = cards[idx];
+                    const transitionStyle = card.querySelector('.transition-input').value;
+                    const textVal = card.querySelector('.script-input').value.trim();
+                    const fileObj = card.querySelector('.media-input').files[0];
+
+                    if (!textVal || !fileObj) {
+                        throw new Error(`Missing entries inside Scenario card row ${idx + 1}.`);
+                    }
+
+                    log.innerHTML = `⚙️ Processing Scenario [${idx + 1}/${totalSlides}]:\n🗣️ Generating speech vector for complete paragraph...`;
+                    
+                    const generatedVocalArrayResult = await new Promise((resolve, reject) => {
+                        kokoroWorker.onmessage = (msgEvent) => {
+                            const { status, audioChannelArray, samplingRate, message } = msgEvent.data;
+                            if (status === "SUCCESS") {
+                                resolve({ pcm: audioChannelArray, sRate: samplingRate });
+                            } else {
+                                reject(new Error(message || "Background speech track extraction error."));
+                            }
+                        };
+                        kokoroWorker.postMessage({ type: "GENERATE", text: textVal, voice: chosenVoiceActorKey });
+                    });
+
+                    finalSamplingRate = generatedVocalArrayResult.sRate;
+
+                    log.innerHTML = `⚙️ Processing Scenario [${idx + 1}/${totalSlides}]:\n🎨 Preloading visual media textures...`;
+                    const bufferedImage = await new Promise((resolve) => {
+                        const r = new FileReader();
+                        r.onload = (e) => {
+                            const imageEl = new Image();
+                            imageEl.onload = () => resolve(imageEl);
+                            imageEl.src = e.target.result;
+                        };
+                        r.readAsDataURL(fileObj);
+                    });
+
+                    const voiceDurationSec = generatedVocalArrayResult.pcm.length / finalSamplingRate;
+                    const paddedSceneDurationSec = 2.0 + voiceDurationSec + 2.0;
+
+                    slideDataArray.push({
+                        rawVoicePCM: generatedVocalArrayResult.pcm,
+                        img: bufferedImage,
+                        transition: transitionStyle,
+                        voiceDuration: voiceDurationSec,
+                        duration: paddedSceneDurationSec
+                    });
+                }
+
+                let currentOffset = 0;
+                for (let idx = 0; idx < slideDataArray.length; idx++) {
+                    slideDataArray[idx].startSampleTime = currentOffset;
+                    if (idx > 0) {
+                        slideDataArray[idx].startSampleTime -= 2.0; 
+                    }
+                    currentOffset = slideDataArray[idx].startSampleTime + slideDataArray[idx].duration;
+                    slideDataArray[idx].endSampleTime = currentOffset;
+                }
+
+                const totalVideoDurationSeconds = currentOffset;
+                const totalAudioSamplesLength = Math.floor(totalVideoDurationSeconds * finalSamplingRate);
+
+                const canvas = document.getElementById('renderCanvas');
+                const ctx = canvas.getContext('2d');
+
+                log.innerHTML = "🎬 Binding padded voice blocks into master presentation timeline...";
+
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: finalSamplingRate });
+                const mainAudioBuffer = audioCtx.createBuffer(1, totalAudioSamplesLength, finalSamplingRate);
+                const masterChannelData = mainAudioBuffer.getChannelData(0);
+
+                slideDataArray.forEach((slide) => {
+                    const voiceWriteSampleOffsetPosition = Math.floor((slide.startSampleTime + 2.0) * finalSamplingRate);
+                    masterChannelData.set(slide.rawVoicePCM, voiceWriteSampleOffsetPosition);
+                });
+
+                const bufferSourceNode = audioCtx.createBufferSource();
+                bufferSourceNode.buffer = mainAudioBuffer;
+
+                const streamAudioDestinationNode = audioCtx.createMediaStreamDestination();
+                bufferSourceNode.connect(streamAudioDestinationNode);
+
+                const canvasVideoStream = canvas.captureStream(0); 
+                const consolidatedMediaStreamOutput = new MediaStream([
+                    canvasVideoStream.getVideoTracks()[0],
+                    streamAudioDestinationNode.stream.getAudioTracks()[0]
+                ]);
+
+                const recorder = new MediaRecorder(consolidatedMediaStreamOutput, { mimeType: 'video/webm;codecs=vp8,opus' });
+                const storageChunks = [];
+                recorder.ondataavailable = (e) => { if (e.data.size > 0) storageChunks.push(e.data); };
+
+                recorder.onstop = () => {
+                    log.innerHTML = "🎉 Production Complete! Video presentation saved with continuous paragraph audio and transitions.";
+                    const compiledBlob = new Blob(storageChunks, { type: 'video/webm' });
+                    const downloadAnchor = document.createElement('a');
+                    downloadAnchor.href = URL.createObjectURL(compiledBlob);
+                    downloadAnchor.download = "talentglass_cinematic_reels.webm";
+                    downloadAnchor.click();
+                    
+                    initializeKokoroWorkerPipeline();
+                };
+
+                recorder.start();
+                bufferSourceNode.start(0);
+
+                log.innerHTML = "🎬 Encoding cinematic video transitions at locked 30fps index...";
+                const totalFramesToRecord = Math.floor(totalVideoDurationSeconds * 30);
+                
+                for (let f = 0; f < totalFramesToRecord; f++) {
+                    const frameTimeSec = f / 30;
+                    paintActiveTimelineFrame(ctx, slideDataArray, frameTimeSec);
+                    canvasVideoStream.getVideoTracks()[0].requestFrame();
+                    
+                    if (f % 45 === 0) {
+                        await new Promise(resolve => setTimeout(resolve, 1));
+                    }
+                }
+
+                paintActiveTimelineFrame(ctx, slideDataArray, totalVideoDurationSeconds);
+                canvasVideoStream.getVideoTracks()[0].requestFrame();
+
+                setTimeout(() => {
+                    recorder.stop();
+                    audioCtx.close();
+                }, 400);
+
+            } catch (err) {
+                log.innerHTML = "❌ Generation Exception: " + err.message;
+                console.error(err);
+                initializeKokoroWorkerPipeline();
+            }
+        }
+    </script>
+</body>
+</html>
