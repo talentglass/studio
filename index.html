@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TalentGlass Studio</title>
+    <link rel="manifest" href="manifest.json">
+    
+    <script>
+        if (window.location.hostname !== "localhost" && !window.crossOriginIsolated) {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js').then(() => {
+                    setTimeout(() => { window.location.reload(); }, 300);
+                });
+            }
+        }
+    </script>
+    
+    <script type="module">
+        import { KokoroTTS } from "https://cdn.jsdelivr.net/npm/kokoro-js@1.1.0/+esm";
+        window.KokoroTTS = KokoroTTS;
+    </script>
+
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f0f3f6; color: #333; }
+        .container { max-width: 600px; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin: 20px auto; }
+        h2 { color: #2c3e50; margin-top: 0; border-bottom: 2px solid #f1f2f6; padding-bottom: 12px; }
+        #loginView { max-width: 400px; margin: 80px auto; text-align: center; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .input-box { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        
+        #studioView { display: none; }
+        .form-group { display: flex; flex-direction: column; margin-bottom: 15px; }
+        label { font-weight: bold; margin-bottom: 6px; color: #4a5568; font-size: 14px; }
+        select, input[type="number"] { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
+        
+        .slide-card { background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 6px; margin-bottom: 15px; position: relative; }
+        .slide-card h4 { margin: 0 0 10px 0; color: #3b82f6; font-size: 14px; }
+        .slide-card input[type="text"] { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; margin-bottom: 10px; font-size: 14px; }
+        
+        .btn { background-color: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: bold; width: 100%; box-sizing: border-box; }
+        #statusLogger { margin-top: 20px; padding: 15px; border-radius: 6px; display: none; font-weight: bold; font-size: 14px; background-color: #e0f2fe; border-left: 4px solid #0284c7; color: #0369a1; white-space: pre-line; }
+    </style>
+</head>
+<body>
+
+    <div id="loginView">
+        <h3 style="color: #2c3e50; margin-bottom: 20px;">Sign In to TalentGlass Studio</h3>
+        <input type="text" id="username" class="input-box" placeholder="Username">
+        <input type="password" id="password" class="input-box" placeholder="Password">
+        <button type="button" class="btn" onclick="validateCredentials()">Authenticate Studio</button>
+        <p id="loginError" style="color: #e11d48; display: none; margin-top: 15px; font-weight: bold; font-size: 13px;"></p>
+    </div>
+
+    <div id="studioView" class="container">
+        <h2>🎬 Downloadable TalentGlass Studio</h2>
+        <p style="font-size: 12px; color: #64748b; margin-top: -5px; margin-bottom: 25px;">Logged in as: <strong style="color: #3b82f6;">suvanam</strong>. Multi-Slide Presentation Core Active (9:16 Portrait).</p>
+        
+        <form id="studioForm">
+            <div class="form-group">
+                <label>AI Voice Profile Actor:</label>
+                <select id="voiceProfile">
+                    <optgroup label="🇮🇳 Hindi Accent">
+                        <option value="hf_alpha">hf_alpha (Hindi - Female)</option>
+                        <option value="hf_beta">hf_beta (Hindi - Female)</option>
+                        <option value="hm_omega">hm_omega (Hindi - Male)</option>
+                        <option value="hm_psi">hm_psi (Hindi - Male)</option>
+                    </optgroup>
+                    <optgroup label="🇺🇸 American English">
+                        <option value="af_bella" selected>af_bella (Female - Warm)</option>
+                        <option value="am_adam">am_adam (Male - Deep)</option>
+                    </optgroup>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Number of Presentation Slides:</label>
+                <input type="number" id="totalSlides" min="1" max="10" value="1" oninput="generateSlideRows()">
+            </div>
+
+            <div id="slidesFormWrapper"></div>
+            <button type="button" class="btn" style="background-color: #10b981; margin-top: 10px;" onclick="compileVideoOnDevice()">Compile Multi-Slide Video</button>
+        </form>
+
+        <div id="statusLogger"></div>
+    </div>
+
+    <canvas id="renderCanvas" width="720" height="1280" style="display:none;"></canvas>
+
+    <script>
+        function validateCredentials() {
+            const userVal = document.getElementById("username").value;
+            const passVal = document.getElementById("password").value;
+            if (userVal === "suvanam" && passVal === "2026") {
+                document.getElementById("loginView").style.display = "none";
+                document.getElementById("studioView").style.display = "block";
+                generateSlideRows();
+            } else {
+                document.getElementById("loginError").innerText = "❌ Access Denied: Invalid parameters.";
+                document.getElementById("loginError").style.display = "block";
+            }
+        }
+
+        function generateSlideRows() {
+            const wrapper = document.getElementById('slidesFormWrapper');
+            const count = parseInt(document.getElementById('totalSlides').value) || 1;
+            wrapper.innerHTML = '';
+            
+            for (let i = 0; i < count; i++) {
+                const div = document.createElement('div');
+                div.className = 'slide-card';
+                div.innerHTML = `
+                    <h4>🎞️ Slide Row Block ${i + 1}</h4>
+                    <label style="color: #64748b; font-size: 13px;">Script text entry:</label>
+                    <input type="text" class="script-input" placeholder="Type narration text..." required>
+                    <input type="file" class="media-input" accept="image/*" required>
+                `;
+                wrapper.appendChild(div);
+            }
+        }
+
+        async function compileVideoOnDevice() {
+            const log = document.getElementById('statusLogger');
+            log.style.display = "block";
+            log.innerHTML = "⏳ Initializing matrix processors...";
+
+            try {
+                log.innerHTML = "🧠 Connecting to AI voice core (Checking IndexedDB)...";
+                const tts = await window.KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX", {
+                    dtype: "q8",
+                    device: "wasm"
+                });
+
+                const scriptElements = document.querySelectorAll('.script-input');
+                const fileElements = document.querySelectorAll('.media-input');
+                const totalSlides = scriptElements.length;
+
+                // 🟢 1. FETCH AND BUFFER VOICE BINARY FILE
+                const voiceName = document.getElementById("voiceProfile").value;
+                log.innerHTML = `🧬 Synchronizing voice map signature structure [${voiceName}]...`;
+                const voiceResponse = await fetch(`https://cdn.jsdelivr.net/npm/kokoro-js@1.1.0/voices/${voiceName}.bin`);
+                if (!voiceResponse.ok) throw new Error("Voice map matrix down.");
+                const voiceBuffer = await voiceResponse.arrayBuffer();
+                const voiceFloatArray = new Float32Array(voiceBuffer);
+
+                let slideDataArray = [];
+                let overallAudioSamplesCount = 0;
+                let samplingRate = 24000; // Kokoro native sample rate
+
+                // 🟢 2. PROCESSING LOOP ACROSS ALL GENERATED SLIDE ENTRIES
+                for (let i = 0; i < totalSlides; i++) {
+                    const textVal = scriptElements[i].value;
+                    const fileObj = fileElements[i].files[0];
+
+                    if (!textVal || !fileObj) {
+                        throw new Error(`Missing asset allocations inside Slide Block row ${i + 1}.`);
+                    }
+
+                    log.innerHTML = `⚙️ Processing Slide [${i + 1}/${totalSlides}]:\n🗣️ Synthesizing narrative script track...`;
+                    
+                    // Generate specific audio clip segment
+                    const audioOutput = await tts.generate(textVal, { voice: voiceFloatArray });
+                    const segmentPCM = audioOutput.audio;
+                    samplingRate = audioOutput.sampling_rate;
+
+                    log.innerHTML = `⚙️ Processing Slide [${i + 1}/${totalSlides}]:\n🎨 Formatting visual image layouts...`;
+                    
+                    // Buffer image elements locally 
+                    const bufferedImage = await new Promise((resolve) => {
+                        const r = new FileReader();
+                        r.onload = (e) => {
+                            const imageEl = new Image();
+                            imageEl.onload = () => resolve(imageEl);
+                            imageEl.src = e.target.result;
+                        };
+                        r.readAsDataURL(fileObj);
+                    });
+
+                    slideDataArray.push({
+                        pcm: segmentPCM,
+                        img: bufferedImage,
+                        samplesLength: segmentPCM.length,
+                        duration: segmentPCM.length / samplingRate
+                    });
+
+                    overallAudioSamplesCount += segmentPCM.length;
+                }
+
+                log.innerHTML = "🎬 Assembling masters and binding media stream layers...";
+                
+                // 🟢 3. COMPILE AUDIO SEGMENTS INTO A SINGLE CONTEXT BUFFER
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: samplingRate });
+                const mainAudioBuffer = audioCtx.createBuffer(1, overallAudioSamplesCount, samplingRate);
+                const channelData = mainAudioBuffer.getChannelData(0);
+
+                let currentWriteOffset = 0;
+                for (let i = 0; i < slideDataArray.length; i++) {
+                    channelData.set(slideDataArray[i].pcm, currentWriteOffset);
+                    slideDataArray[i].startSampleTime = currentWriteOffset / samplingRate;
+                    currentWriteOffset += slideDataArray[i].samplesLength;
+                    slideDataArray[i].endSampleTime = currentWriteOffset / samplingRate;
+                }
+
+                const totalAudioDuration = overallAudioSamplesCount / samplingRate;
+
+                // 🟢 4. CANVAS TIMELINE FRAME RENDERING INTERCEPTOR
+                const canvas = document.getElementById('renderCanvas');
+                const ctx = canvas.getContext('2d');
+                
+                function drawCanvasFrameForTime(currentTime) {
+                    // Identify which slide corresponds to the current timestamp
+                    let activeSlide = slideDataArray[0];
+                    for (let i = 0; i < slideDataArray.length; i++) {
+                        if (currentTime >= slideDataArray[i].startSampleTime && currentTime <= slideDataArray[i].endSampleTime) {
+                            activeSlide = slideDataArray[i];
+                            break;
+                        }
+                    }
+
+                    // Render background fill layer
+                    ctx.fillStyle = "#1e293b";
+                    ctx.fillRect(0, 0, 720, 1280);
+
+                    // Resize calculations (Contain/Fit rules)
+                    const img = activeSlide.img;
+                    const ratio = Math.min(720 / img.width, 1280 / img.height);
+                    const rW = img.width * ratio;
+                    const rH = img.height * ratio;
+                    const oX = (720 - rW) / 2;
+                    const oY = (1280 - rH) / 2;
+
+                    ctx.drawImage(img, oX, oY, rW, rH);
+                }
+
+                // Initialize canvas frame layout state
+                drawCanvasFrameForTime(0);
+
+                // 🟢 5. STREAM CAPTURE AND RECORDING ENGINE EXTRACTION
+                const bufferSource = audioCtx.createBufferSource();
+                bufferSource.buffer = mainAudioBuffer;
+
+                const streamAudioDestination = audioCtx.createMediaStreamDestination();
+                bufferSource.connect(streamAudioDestination);
+
+                const canvasVideoStream = canvas.captureStream(25); 
+                const consolidatedOutputStream = new MediaStream([
+                    canvasVideoStream.getVideoTracks()[0],
+                    streamAudioDestination.stream.getAudioTracks()[0]
+                ]);
+
+                const recorder = new MediaRecorder(consolidatedOutputStream, { mimeType: 'video/webm;codecs=vp8,opus' });
+                const storageChunks = [];
+
+                recorder.ondataavailable = (e) => { if (e.data.size > 0) storageChunks.push(e.data); };
+                
+                let renderLoopId;
+                const genesisTime = performance.now();
+
+                recorder.onstop = () => {
+                    cancelAnimationFrame(renderLoopId);
+                    log.innerHTML = "🎉 Done! Saving production presentation video file.";
+                    const compiledBlob = new Blob(storageChunks, { type: 'video/webm' });
+                    const downloadAnchor = document.createElement('a');
+                    downloadAnchor.href = URL.createObjectURL(compiledBlob);
+                    downloadAnchor.download = "talentglass_multislide_presentation.webm";
+                    downloadAnchor.click();
+                };
+
+                // Continuous viewport draw loop running synchronously with recording duration
+                function executionViewportHeartbeat() {
+                    const runningTimestampSeconds = (performance.now() - genesisTime) / 1000;
+                    drawCanvasFrameForTime(runningTimestampSeconds);
+                    renderLoopId = requestAnimationFrame(executionViewportHeartbeat);
+                }
+
+                recorder.start();
+                bufferSource.start(0);
+                executionViewportHeartbeat();
+
+                // Safe cut off point once timeline runs out
+                setTimeout(() => {
+                    recorder.stop();
+                    audioCtx.close();
+                }, totalAudioDuration * 1000);
+
+            } catch (err) {
+                log.innerHTML = "❌ Generation Exception: " + err.message;
+                console.error(err);
+            }
+        }
+    </script>
+</body>
+</html>
