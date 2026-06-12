@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TalentGlass Studio</title>
+    <link rel="manifest" href="manifest.json">
+    
+    <script>
+        if (window.location.hostname !== "localhost" && !window.crossOriginIsolated) {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js').then(() => {
+                    setTimeout(() => { window.location.reload(); }, 300);
+                });
+            }
+        }
+    </script>
+    
+    <script type="module">
+        import { KokoroTTS } from "https://cdn.jsdelivr.net/npm/kokoro-js@1.1.0/+esm";
+        window.KokoroTTS = KokoroTTS;
+    </script>
+
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f0f3f6; color: #333; }
+        .container { max-width: 600px; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin: 20px auto; }
+        h2 { color: #2c3e50; margin-top: 0; border-bottom: 2px solid #f1f2f6; padding-bottom: 12px; }
+        #loginView { max-width: 400px; margin: 80px auto; text-align: center; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .input-box { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        
+        #studioView { display: none; }
+        .form-group { display: flex; flex-direction: column; margin-bottom: 15px; }
+        label { font-weight: bold; margin-bottom: 6px; color: #4a5568; font-size: 14px; }
+        select, input[type="number"], .script-input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; width: 100%; box-sizing: border-box; }
+        
+        .slide-card { background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .slide-card h3 { margin: 0 0 15px 0; color: #1e3a8a; font-size: 16px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 8px; }
+        
+        .btn { background-color: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: bold; width: 100%; box-sizing: border-box; }
+        #forceInstallContainer { display: block; background: #fffbeb; border: 1px solid #fef3c7; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
+        #statusLogger { margin-top: 20px; padding: 15px; border-radius: 6px; display: none; font-weight: bold; font-size: 14px; background-color: #e0f2fe; border-left: 4px solid #0284c7; color: #0369a1; white-space: pre-line; }
+    </style>
+</head>
+<body>
+
+    <div id="loginView">
+        <h3 style="color: #2c3e50; margin-bottom: 20px;">Sign In to TalentGlass Studio</h3>
+        <input type="text" id="username" class="input-box" placeholder="Username">
+        <input type="password" id="password" class="input-box" placeholder="Password">
+        <button type="button" class="btn" onclick="validateCredentials()">Authenticate Studio</button>
+        <p id="loginError" style="color: #e11d48; display: none; margin-top: 15px; font-weight: bold; font-size: 13px;"></p>
+    </div>
+
+    <div id="studioView" class="container">
+        
+        <div id="forceInstallContainer">
+            <p style="margin: 0 0 10px 0; font-size: 13px; color: #b45309; font-weight: bold;">📲 Save App Shortcut Link Directly onto your Device Home Screen:</p>
+            <button type="button" class="btn" style="background-color: #d97706;" onclick="triggerManualPwaInstall()">Download & Install Studio App</button>
+        </div>
+
+        <h2>🎬 TalentGlass Studio</h2>
+        <p style="font-size: 12px; color: #64748b; margin-top: -5px; margin-bottom: 25px;">Logged in as: <strong style="color: #3b82f6;">suvanam</strong> | Status: <span id="engineStatus" style="color:#d97706; font-weight:bold;">Warming up GPU Matrix...</span></p>
+        
+        <form id="studioForm">
+            <div class="form-group" style="background: #eff6ff; padding: 15px; border-radius: 8px; border: 1px dashed #bfdbfe;">
+                <label style="color:#1e40af;">🌍 Global AI Kokoro Voice Actor (Applies to all Scenarios):</label>
+                <select id="voiceProfile">
+                    <optgroup label="🇺🇸 American Accent - Female">
+                        <option value="af_bella" selected>af_bella (Bella - Warm & Crisp)</option>
+                        <option value="af_nicole">af_nicole (Nicole - Professional)</option>
+                        <option value="af_sarah">af_sarah (Sarah - Bright)</option>
+                        <option value="af_sky">af_sky (Sky - Natural Pacing)</option>
+                    </optgroup>
+                    <optgroup label="🇺🇸 American Accent - Male">
+                        <option value="am_adam">am_adam (Adam - Deep & Authoritative)</option>
+                        <option value="am_michael">am_michael (Michael - Smooth Corporate)</option>
+                    </optgroup>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Number of Presentation Slides:</label>
+                <input type="number" id="totalSlides" min="1" max="10" value="1" oninput="generateSlideRows()">
+            </div>
+
+            <div id="slidesFormWrapper"></div>
+            
+            <button type="button" id="compileBtn" class="btn" style="background-color: #10b981; margin-top: 10px;" onclick="compileVideoOnDevice()" disabled>Awaiting GPU Core Initialization...</button>
+        </form>
+
+        <div id="statusLogger"></div>
+    </div>
+
+    <canvas id="renderCanvas" width="720" height="1280" style="display:none;"></canvas>
+
+    <script>
+        let globalTTSInstance = null;
+        let deferredPrompt = null;
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+        });
+
+        function triggerManualPwaInstall() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choice) => {
+                    if (choice.outcome === 'accepted') deferredPrompt = null;
+                });
+            } else {
+                alert("To add this application straight onto your device:\n\n• On Chrome: Tap the 3 dots in the top right corner, then select 'Install app' or 'Add to Home screen'.\n• On Safari: Tap the Share square icon at the bottom toolbar, scroll down, and tap 'Add to Home Screen'.");
+            }
+        }
+
+        function validateCredentials() {
+            const userVal = document.getElementById("username").value;
+            const passVal = document.getElementById("password").value;
+            if (userVal === "suvanam" && passVal === "2026") {
+                document.getElementById("loginView").style.display = "none";
+                document.getElementById("studioView").style.display = "block";
+                generateSlideRows();
+                initializeEngineEarlygpu();
+            } else {
+                document.getElementById("loginError").innerText = "❌ Access Denied: Invalid credentials.";
+                document.getElementById("loginError").style.display = "block";
+            }
+        }
+
+        // 🟢 FIX 1: HIGH-SPEED HARDWARE-ACCELERATED WEBGPU MODEL CACHE INITIALIZER
+        async function initializeEngineEarlygpu() {
+            try {
+                if (globalTTSInstance) return;
+                
+                // Targets local device GPU for matrix operations, dropping compilation overhead significantly
+                globalTTSInstance = await window.KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX", {
+                    dtype: "fp32", 
+                    device: "webgpu", // Swapped from WASM software fallback directly to GPU hardware
+                    quantized: false,
+                    progress_callback: null
+                });
+                
+                document.getElementById("engineStatus").innerHTML = "⚡ GPU Acceleration Active & Ready";
+                document.getElementById("engineStatus").style.color = "#16a34a";
+                
+                const compileBtn = document.getElementById("compileBtn");
+                compileBtn.disabled = false;
+                compileBtn.innerText = "Compile Cinematic Video";
+            } catch (err) {
+                // Secure fallback path if browser has hardware acceleration checkboxes toggled off
+                console.warn("WebGPU initialization missed registers, dropping back safely to high-speed cached assembly mapping...", err);
+                try {
+                    globalTTSInstance = await window.KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX", {
+                        dtype: "q8",
+                        device: "wasm",
+                        quantized: true,
+                        progress_callback: null
+                    });
+                    document.getElementById("engineStatus").innerHTML = "⚡ Engine Ready (Optimized WASM Fallback Mode)";
+                    document.getElementById("engineStatus").style.color = "#16a34a";
+                    document.getElementById("compileBtn").disabled = false;
+                    document.getElementById("compileBtn").innerText = "Compile Cinematic Video";
+                } catch (fail) {
+                    document.getElementById("engineStatus").innerHTML = "❌ AI Frame Engine Error";
+                    document.getElementById("engineStatus").style.color = "#dc2626";
+                }
+            }
+        }
+
+        function generateSlideRows() {
+            const wrapper = document.getElementById('slidesFormWrapper');
+            const count = parseInt(document.getElementById('totalSlides').value) || 1;
+            wrapper.innerHTML = '';
+            
+            for (let i = 0; i < count; i++) {
+                const div = document.createElement('div');
+                div.className = 'slide-card';
+                div.innerHTML = `
+                    <h3>🎬 Scenario ${i + 1}</h3>
+                    
+                    <div class="form-group">
+                        <label>Cinematic Slow Transition Video Style:</label>
+                        <select class="transition-input">
+                            <option value="zoomIn" selected>Slow Ken Burns Zoom In (Cinematic Flow)</option>
+                            <option value="zoomOut">Slow Ken Burns Zoom Out (Deep Reveal)</option>
+                            <option value="panLeft">Slow Cinematic Pan Left</option>
+                            <option value="panRight">Slow Cinematic Pan Right</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Narration Text Script:</label>
+                        <input type="text" class="script-input" value="This is an elite presentation slide displaying beautiful automated text transitions with high quality output results." required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Media File Picker:</label>
+                        <input type="file" class="media-input" accept="image/*" required>
+                    </div>
+                `;
+                wrapper.appendChild(div);
+            }
+        }
+
+        function chunkTextString(text) {
+            return text.match(/[^.!?区域,，。！？\n]+[.!?区域,，।！？\n]*/g) || [text];
+        }
+
+        // Mathematical uniform center crop animation matrix painter
+        function drawActiveTimelineFrame(ctx, slideDataArray, currentTimeSeconds) {
+            let activeSlide = slideDataArray[0];
+            for (let idx = 0; idx < slideDataArray.length; idx++) {
+                if (currentTimeSeconds >= slideDataArray[idx].startSampleTime && currentTimeSeconds <= slideDataArray[idx].endSampleTime) {
+                    activeSlide = slideDataArray[idx];
+                    break;
+                }
+            }
+
+            const img = activeSlide.img;
+            const targetWidth = 720;
+            const targetHeight = 1280;
+
+            const imgRatio = img.width / img.height;
+            const targetRatio = targetWidth / targetHeight;
+            let srcWidth, srcHeight, srcX, srcY;
+
+            if (imgRatio > targetRatio) {
+                srcHeight = img.height;
+                srcWidth = img.height * targetRatio;
+                srcX = (img.width - srcWidth) / 2;
+                srcY = 0;
+            } else {
+                srcWidth = img.width;
+                srcHeight = img.width / targetRatio;
+                srcX = 0;
+                srcY = (img.height - srcHeight) / 2;
+            }
+
+            const slideElapsed = currentTimeSeconds - activeSlide.startSampleTime;
+            const progress = Math.min(slideElapsed / activeSlide.duration, 1.0);
+
+            ctx.clearRect(0, 0, targetWidth, targetHeight);
+            ctx.save();
+
+            let scale = 1.0;
+            let moveX = 0;
+            let moveY = 0;
+
+            if (activeSlide.transition === "zoomIn") {
+                scale = 1.0 + (progress * 0.25); 
+            } else if (activeSlide.transition === "zoomOut") {
+                scale = 1.25 - (progress * 0.25); 
+            } else if (activeSlide.transition === "panLeft") {
+                moveX = -(progress * 110); 
+            } else if (activeSlide.transition === "panRight") {
+                moveX = (progress * 110);
+            }
+
+            ctx.translate(targetWidth / 2 + moveX, targetHeight / 2 + moveY);
+            ctx.scale(scale, scale);
+            ctx.translate(-targetWidth / 2, -targetHeight / 2);
+
+            ctx.drawImage(img, srcX, srcY, srcWidth, srcHeight, 0, 0, targetWidth, targetHeight);
+            ctx.restore();
+        }
+
+        async function compileVideoOnDevice() {
+            const log = document.getElementById('statusLogger');
+            log.style.display = "block";
+            log.innerHTML = "⏳ Pre-processing scenario layers and assets...";
+
+            try {
+                if (!globalTTSInstance) throw new Error("AI core loading vector maps. Please reload page workspace window.");
+
+                const cards = document.querySelectorAll('.slide-card');
+                const totalSlides = cards.length;
+                const chosenVoiceName = document.getElementById("voiceProfile").value;
+
+                let slideDataArray = [];
+                let overallAudioSamplesCount = 0;
+                let samplingRate = 24000; // Kokoro High Fidelity Production Sample Metric Standard
+
+                // STAGE 1: PARSE AND GENERATE THE RE-ROUTED VOICE BUFFER FILE STREAM
+                for (let idx = 0; idx < totalSlides; idx++) {
+                    const card = cards[idx];
+                    const transitionStyle = card.querySelector('.transition-input').value;
+                    const textVal = card.querySelector('.script-input').value;
+                    const fileObj = card.querySelector('.media-input').files[0];
+
+                    if (!textVal || !fileObj) {
+                        throw new Error(`Missing values inside Scenario card row ${idx + 1}.`);
+                    }
+
+                    log.innerHTML = `⚙️ Processing Scenario [${idx + 1}/${totalSlides}]:\n🗣️ Chunking narration text clauses...`;
+                    
+                    const textChunks = chunkTextString(textVal);
+                    let compiledPCMChunks = [];
+
+                    for (let c = 0; c < textChunks.length; c++) {
+                        const subString = textChunks[c].trim();
+                        if (subString.length === 0) continue;
+
+                        log.innerHTML = `⚙️ Processing Scenario [${idx + 1}/${totalSlides}]:\n🗣️ Running high-speed speech matrix mapping ${c + 1} of ${textChunks.length}...`;
+                        
+                        // Yield thread processing window briefly
+                        await new Promise(resolve => setTimeout(resolve, 30));
+
+                        // Pulls speech directly from GPU execution block registers
+                        const partialOutput = await globalTTSInstance.generate(subString, { voice: chosenVoiceName });
+                        if (partialOutput && partialOutput.audio) {
+                            compiledPCMChunks.push(partialOutput.audio);
+                            samplingRate = partialOutput.sampling_rate;
+                        }
+                    }
+
+                    // Merges scenario pcm array values together into one structured slide vocal clip
+                    let totalSegmentLength = compiledPCMChunks.reduce((acc, val) => acc + val.length, 0);
+                    let slideMergedPCM = new Float32Array(totalSegmentLength);
+                    let currentPCMOffset = 0;
+                    for (let chunk of compiledPCMChunks) {
+                        slideMergedPCM.set(chunk, currentPCMOffset);
+                        currentPCMOffset += chunk.length;
+                    }
+
+                    log.innerHTML = `⚙️ Processing Scenario [${idx + 1}/${totalSlides}]:\n🎨 Pre-loading media graphics frame...`;
+                    const bufferedImage = await new Promise((resolve) => {
+                        const r = new FileReader();
+                        r.onload = (e) => {
+                            const imageEl = new Image();
+                            imageEl.onload = () => resolve(imageEl);
+                            imageEl.src = e.target.result;
+                        };
+                        r.readAsDataURL(fileObj);
+                    });
+
+                    slideDataArray.push({
+                        pcm: slideMergedPCM,
+                        img: bufferedImage,
+                        transition: transitionStyle,
+                        samplesLength: slideMergedPCM.length,
+                        duration: slideMergedPCM.length / samplingRate
+                    });
+
+                    overallAudioSamplesCount += slideMergedPCM.length;
+                }
+
+                // 🟢 FIX 2: ALIGN DYNAMIC TIMELINE SLOT RANGES NATIVELY
+                let currentOffset = 0;
+                for (let idx = 0; idx < slideDataArray.length; idx++) {
+                    slideDataArray[idx].startSampleTime = currentOffset / samplingRate;
+                    currentOffset += slideDataArray[idx].samplesLength;
+                    slideDataArray[idx].endSampleTime = currentOffset / samplingRate;
+                }
+
+                const totalAudioDuration = overallAudioSamplesCount / samplingRate;
+                const canvas = document.getElementById('renderCanvas');
+                const ctx = canvas.getContext('2d');
+
+                log.innerHTML = "🎬 Merging audio tracks into master presentation stream...";
+
+                // 🟢 FIX 3: INJECT SOUND DIGITALLY STRAIGHT INTO WEB AUDIO MATRIX DESTINATION NODES
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: samplingRate });
+                const mainAudioBuffer = audioCtx.createBuffer(1, overallAudioSamplesCount, samplingRate);
+                const channelData = mainAudioBuffer.getChannelData(0);
+
+                let currentWriteOffset = 0;
+                for (let idx = 0; idx < slideDataArray.length; idx++) {
+                    channelData.set(slideDataArray[idx].pcm, currentWriteOffset);
+                    currentWriteOffset += slideDataArray[idx].samplesLength;
+                }
+
+                const bufferSource = audioCtx.createBufferSource();
+                bufferSource.buffer = mainAudioBuffer;
+
+                const streamAudioDestination = audioCtx.createMediaStreamDestination();
+                bufferSource.connect(streamAudioDestination);
+
+                const canvasVideoStream = canvas.captureStream(0); // Driven frame-by-frame manually via code clock
+                const consolidatedOutputStream = new MediaStream([
+                    canvasVideoStream.getVideoTracks()[0],
+                    streamAudioDestination.stream.getAudioTracks()[0]
+                ]);
+
+                const recorder = new MediaRecorder(consolidatedOutputStream, { mimeType: 'video/webm;codecs=vp8,opus' });
+                const storageChunks = [];
+                recorder.ondataavailable = (e) => { if (e.data.size > 0) storageChunks.push(e.data); };
+
+                recorder.onstop = () => {
+                    log.innerHTML = "🎉 Production Complete! Video presentation saved with embedded voice and transitions.";
+                    const compiledBlob = new Blob(storageChunks, { type: 'video/webm' });
+                    const downloadAnchor = document.createElement('a');
+                    downloadAnchor.href = URL.createObjectURL(compiledBlob);
+                    downloadAnchor.download = "talentglass_cinematic_kokoro.webm";
+                    downloadAnchor.click();
+                };
+
+                // Open processing recording registers
+                recorder.start();
+                bufferSource.start(0);
+
+                // STAGE 2: DETERMINISTIC HIGH-SPEED OFFLINE CHRONOMETER FRAME PACKER
+                log.innerHTML = "🎬 Encoding cinematic transitions & binding master tracks...";
+                const totalFramesToRecord = Math.floor(totalAudioDuration * 30);
+                
+                for (let f = 0; f < totalFramesToRecord; f++) {
+                    const frameTimeSec = f / 30;
+                    drawActiveTimelineFrame(ctx, slideDataArray, frameTimeSec);
+                    
+                    // Force the stream layout engine to grab the frame manually
+                    canvasVideoStream.getVideoTracks()[0].requestFrame();
+                    
+                    if (f % 40 === 0) {
+                        await new Promise(resolve => setTimeout(resolve, 1));
+                    }
+                }
+
+                drawActiveTimelineFrame(ctx, slideDataArray, totalAudioDuration);
+                canvasVideoStream.getVideoTracks()[0].requestFrame();
+
+                setTimeout(() => {
+                    recorder.stop();
+                    audioCtx.close();
+                }, 400);
+
+            } catch (err) {
+                log.innerHTML = "❌ Generation Exception: " + err.message;
+                console.error(err);
+            }
+        }
+    </script>
+</body>
+</html>
