@@ -6,14 +6,16 @@
     <title>TalentGlass Studio</title>
     <link rel="manifest" href="manifest.json">
     
-    <!-- Load client-side AI processing runtime frameworks -->
+    <!-- 🟢 MODERN HIGH-COMPATIBILITY MODULE INJECTOR -->
     <script type="module">
+        // Load Transformers for AI Voice
         import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.1';
         window.pipeline = pipeline;
+
+        // Load FFmpeg safely as an isolated modern module to prevent "Not Defined" crashes
+        import { createFFmpeg } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/+esm';
+        window.createFFmpeg = createFFmpeg;
     </script>
-    
-    <!-- Updated, Secure Mobile-Friendly FFmpeg Library Links -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ffmpeg/0.11.6/ffmpeg.min.js" integrity="sha512-H9YTIjN9R5q08S08A749f7SAnfshqfAByE20ofIuYit3CHnNOfZ7L9z6I2P0FwZ+y18v6Nof6k5rAm987uX5Sg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
     <style>
         body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f0f3f6; color: #333; }
@@ -38,7 +40,7 @@
 
     <!-- 🔒 SECURE LOGIN CREDENTIALS GATE -->
     <div id="loginView">
-        <h3 style="color: #2c3e50; margin-bottom: 20px;">Sign In to Presentation Studio</h3>
+        <h3 style="color: #2c3e50; margin-bottom: 20px;">Sign In to TalentGlass Studio</h3>
         <input type="text" id="username" class="input-box" placeholder="Username">
         <input type="password" id="password" class="input-box" placeholder="Password">
         <button type="button" class="btn" onclick="validateCredentials()">Authenticate Studio</button>
@@ -75,7 +77,6 @@
     <script>
         let ffmpegCtx = null;
 
-        // Automatically register the background installation worker
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js');
         }
@@ -119,8 +120,11 @@
 
             try {
                 if (!ffmpegCtx) {
-                    // 🟢 FIX: Accessing the universally globally-exposed FFmpeg object correctly
-                    ffmpegCtx = ffmpeg.createFFmpeg({ log: true });
+                    // 🟢 SECURE INSTANTIATION THROUGH TARGETED WINDOW MODULE
+                    if (typeof window.createFFmpeg !== 'function') {
+                        throw new Error("FFmpeg initialization core module failed to stream. Please refresh.");
+                    }
+                    ffmpegCtx = window.createFFmpeg({ log: true });
                     await ffmpegCtx.load();
                 }
 
@@ -134,7 +138,6 @@
                 const count = scripts.length;
                 let partialClips = [];
 
-                // ─── STEP 1: CONSTRUCT CLIPS WITH MARGIN BUFFER TIMELINES ───
                 for (let idx = 0; idx < count; idx++) {
                     log.innerHTML = `⚙️ Processing Slide timelines: Rendering ${idx+1} of ${count}...`;
                     const text = scripts[idx].value;
@@ -155,11 +158,9 @@
                     ffmpegCtx.FS('writeFile', rawAudioName, wavBytes);
                     ffmpegCtx.FS('writeFile', mName, await convertToBinaryArray(fileObj));
 
-                    // 🟢 TIMING MARGIN CALCULATIONS
                     const originalAudioDuration = rawPCM.length / sRate;
                     const totalSlideDuration = 2.0 + originalAudioDuration + 2.0;
 
-                    // Delay front edge speech entry by 2 seconds, pad silence up to full timeline length
                     const audioFilterString = `adelay=2000|2000,apad=whole_len=${Math.ceil(totalSlideDuration * sRate)}`;
 
                     await ffmpegCtx.run(
@@ -172,7 +173,6 @@
                     partialClips.push(outName);
                 }
 
-                // ─── STEP 2: ASSEMBLY SEQUENCES ───
                 log.innerHTML = "🎬 Final video compilation track exporting...";
                 await ffmpegCtx.run('-y', '-i', 'clip_0.mp4', 'final_presentation_studio.mp4'); 
 
@@ -229,4 +229,3 @@
     </script>
 </body>
 </html>
-
