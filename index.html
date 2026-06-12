@@ -11,7 +11,7 @@
         window.pipeline = pipeline;
     </script>
     
-    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.min.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.9.8/dist/ffmpeg.min.js"></script>
 
     <style>
         body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f0f3f6; color: #333; }
@@ -114,14 +114,9 @@
 
             try {
                 if (!ffmpegCtx) {
-                    // 🟢 SMART LINK FALLBACK: Catches both window.FFmpegWASM and window.FFmpeg definitions
-                    const FFmpegInstance = window.FFmpegWASM || window.FFmpeg;
-                    
-                    if (!FFmpegInstance || typeof FFmpegInstance.createFFmpeg !== 'function') {
-                        throw new Error("FFmpeg script library failed to properly unpack in browser window context. Please refresh your browser.");
-                    }
-                    
-                    ffmpegCtx = FFmpegInstance.createFFmpeg({ log: true });
+                    // 🟢 NATIVE UNPACKING: Target the globally stable legacy wrapper definition
+                    const { createFFmpeg } = FFmpeg;
+                    ffmpegCtx = createFFmpeg({ log: true });
                     await ffmpegCtx.load();
                 }
 
@@ -162,3 +157,67 @@
 
                     await ffmpegCtx.run(
                         '-y', '-loop', '1', '-i', mName, '-i', rawAudioName,
+                        '-filter_complex', `[1:a]${audioFilterString}[padded_audio]`,
+                        '-map', '0:v:0', '-map', '[padded_audio]',
+                        '-c:v', 'libx264', '-t', String(totalSlideDuration), '-pix_fmt', 'yuv420p',
+                        '-vf', 'scale=1280:720', '-c:a', 'aac', outName
+                    );
+                    partialClips.push(outName);
+                }
+
+                log.innerHTML = "🎬 Final video compilation track exporting...";
+                await ffmpegCtx.run('-y', '-i', 'clip_0.mp4', 'final_presentation_studio.mp4'); 
+
+                const finalVideoBytes = ffmpegCtx.FS('readFile', 'final_presentation_studio.mp4');
+                const outputBlob = new Blob([finalVideoBytes.buffer], { type: 'video/mp4' });
+                const downloadLink = URL.createObjectURL(outputBlob);
+
+                log.innerHTML = "🎉 Production Complete! Saving file straight into your device storage.";
+                const anchor = document.createElement('a');
+                anchor.href = downloadLink;
+                anchor.download = "local_presentation_output.mp4";
+                anchor.click();
+
+            } catch (err) {
+                log.innerHTML = "❌ Framework Generation Exception Error: " + err.message;
+                console.error(err);
+            }
+        }
+
+        function convertToBinaryArray(file) {
+            return new Promise((resolve) => {
+                const r = new FileReader();
+                r.onload = () => resolve(new Uint8Array(r.result));
+                r.readAsArrayBuffer(file);
+            });
+        }
+
+        function createWavBinary(samples, sampleRate) {
+            const buffer = new ArrayBuffer(44 + samples.length * 2);
+            const view = new DataView(buffer);
+            const writeStr = (v, offset, str) => {
+                for (let i = 0; i < str.length; i++) v.setUint8(offset + i, str.charCodeAt(i));
+            };
+            writeStr(view, 0, 'RIFF');
+            view.setUint32(4, 36 + samples.length * 2, true);
+            writeStr(view, 8, 'WAVE');
+            writeStr(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeStr(view, 36, 'data');
+            view.setUint32(40, samples.length * 2, true);
+            let index = 44;
+            for (let i = 0; i < samples.length; i++, index += 2) {
+                let s = Math.max(-1, Math.min(1, samples[i]));
+                view.setInt16(index, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+            }
+            return new Uint8Array(buffer);
+        }
+    </script>
+</body>
+</html>
