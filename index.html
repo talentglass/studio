@@ -120,7 +120,7 @@
             try {
                 if (!ffmpegCtx) {
                     // 🟢 FIX: Accessing the universally globally-exposed FFmpeg object correctly
-                    ffmpegCtx = FFmpeg.createFFmpeg({ log: true });
+                    ffmpegCtx = ffmpeg.createFFmpeg({ log: true });
                     await ffmpegCtx.load();
                 }
 
