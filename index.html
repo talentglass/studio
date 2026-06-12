@@ -6,16 +6,14 @@
     <title>TalentGlass Studio</title>
     <link rel="manifest" href="manifest.json">
     
-    <!-- 🟢 MODERN HIGH-COMPATIBILITY MODULE INJECTOR -->
+    <!-- Load client-side AI processing runtime frameworks -->
     <script type="module">
-        // Load Transformers for AI Voice
         import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.1';
         window.pipeline = pipeline;
-
-        // Load FFmpeg safely as an isolated modern module to prevent "Not Defined" crashes
-        import { createFFmpeg } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/+esm';
-        window.createFFmpeg = createFFmpeg;
     </script>
+    
+    <!-- 🟢 CHOSEN ROBUST UMD BUNDLE FOR PERFECT GITHUB PAGES SECURITY COMPATIBILITY -->
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.min.js"></script>
 
     <style>
         body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f0f3f6; color: #333; }
@@ -120,11 +118,9 @@
 
             try {
                 if (!ffmpegCtx) {
-                    // 🟢 SECURE INSTANTIATION THROUGH TARGETED WINDOW MODULE
-                    if (typeof window.createFFmpeg !== 'function') {
-                        throw new Error("FFmpeg initialization core module failed to stream. Please refresh.");
-                    }
-                    ffmpegCtx = window.createFFmpeg({ log: true });
+                    // 🟢 SECURE ACCESS THROUGH UNIFIED GLOBAL OBJECT ACCESSIBLE TO HIGH-SECURITY DOMAINS
+                    const { createFFmpeg } = window.FFmpeg;
+                    ffmpegCtx = createFFmpeg({ log: true });
                     await ffmpegCtx.load();
                 }
 
