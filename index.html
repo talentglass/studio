@@ -6,7 +6,8 @@
     <title>TalentGlass Studio</title>
     <link rel="manifest" href="manifest.json">
     
-    <!-- Load client-side AI processing runtime frameworks -->
+    <script src="coi-serviceworker.js"></script>
+    
     <script type="module">
         import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.1';
         window.pipeline = pipeline;
