@@ -1,0 +1,17 @@
+{
+  "name": "Local AI Video Presentation Studio",
+  "short_name": "AI Studio",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#f0f3f6",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/711/711245.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
+
