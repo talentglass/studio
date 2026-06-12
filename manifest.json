@@ -1,6 +1,6 @@
 {
-  "name": "Local AI Video Presentation Studio",
-  "short_name": "AI Studio",
+  "name": "TalentGlass Studio",
+  "short_name": "TalentGlass Studio",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#f0f3f6",
@@ -14,4 +14,3 @@
     }
   ]
 }
-
