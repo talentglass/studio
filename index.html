@@ -12,7 +12,7 @@
         window.pipeline = pipeline;
     </script>
     
-    <!-- 🟢 CHOSEN ROBUST UMD BUNDLE FOR PERFECT GITHUB PAGES SECURITY COMPATIBILITY -->
+    <!-- Robust UMD Bundle for Perfect GitHub Pages Compatibility -->
     <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.min.js"></script>
 
     <style>
@@ -118,9 +118,8 @@
 
             try {
                 if (!ffmpegCtx) {
-                    // 🟢 SECURE ACCESS THROUGH UNIFIED GLOBAL OBJECT ACCESSIBLE TO HIGH-SECURITY DOMAINS
-                    const { createFFmpeg } = window.FFmpeg;
-                    ffmpegCtx = createFFmpeg({ log: true });
+                    // 🟢 CORRECTED LINK: Straight object referencing to bypass destructuring drops
+                    ffmpegCtx = window.FFmpeg.createFFmpeg({ log: true });
                     await ffmpegCtx.load();
                 }
 
