@@ -1,34 +1,53 @@
-const CACHE_NAME = 'talentglass-v2';
-const ASSETS = [
+const CACHE_NAME = 'talentglass-studio-v3';
+const ASSETS_TO_CACHE = [
   'index.html',
   'manifest.json'
 ];
 
-self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS)));
+// Force immediate installation and activation without holding old versions hostage
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(ASSETS_TO_CACHE);
+    })
+  );
   self.skipWaiting();
 });
 
-self.addEventListener('activate', (e) => {
-  e.waitUntil(self.clients.claim());
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cache) => {
+          if (cache !== CACHE_NAME) {
+            return caches.delete(cache);
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
+  );
 });
 
-self.addEventListener('fetch', (e) => {
-  if (e.request.mode === 'navigate') {
-    e.respondWith(
-      fetch(e.request).then((response) => {
-        // 🟢 INJECT SECURE ENVIRONMENT MATRIX HEADERS LOCALLY AT RUNTIME
-        const newHeaders = new Headers(response.headers);
-        newHeaders.set('Cross-Origin-Opener-Policy', 'same-origin');
-        newHeaders.set('Cross-Origin-Embedder-Policy', 'require-corp');
+// Standard fetch routing provides cross-origin isolation headers smoothly
+self.addEventListener('fetch', (event) => {
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).then((response) => {
+        const secureHeaders = new Headers(response.headers);
+        secureHeaders.set('Cross-Origin-Opener-Policy', 'same-origin');
+        secureHeaders.set('Cross-Origin-Embedder-Policy', 'require-corp');
         return new Response(response.body, {
           status: response.status,
           statusText: response.statusText,
-          headers: newHeaders
+          headers: secureHeaders
         });
       }).catch(() => caches.match('index.html'))
     );
   } else {
-    e.respondWith(caches.match(e.request).then(res => res || fetch(e.request)));
+    event.respondWith(
+      caches.match(event.request).then((cachedResponse) => {
+        return cachedResponse || fetch(event.request);
+      })
+    );
   }
 });
