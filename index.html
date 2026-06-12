@@ -1,1 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TalentGlass Studio</title>
+    <link rel="manifest" href="manifest.json">
+    
+    <script type="module">
+        import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.1';
+        window.pipeline = pipeline;
+    </script>
+    
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.9.8/dist/ffmpeg.min.js"></script>
 
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f0f3f6; color: #333; }
+        .container { max-width: 600px; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin: 20px auto; }
+        h2 { color: #2c3e50; margin-top: 0; border-bottom: 2px solid #f1f2f6; padding-bottom: 12px; }
+        
+        #loginView { max-width: 400px; margin: 80px auto; text-align: center; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .input-box { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        
+        #studioView { display: none; }
+        .form-group { display: flex; flex-direction: column; margin-bottom: 15px; }
+        label { font-weight: bold; margin-bottom: 6px; color: #4a5568; font-size: 14px; }
+        select, input[type="number"] { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
+        .slide-card { background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
+        .slide-card input[type="text"] { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; margin-bottom: 10px; }
+        
+        .btn { background-color: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: bold; width: 100%; box-sizing: border-box; }
+        #statusLogger { margin-top: 20px; padding: 15px; border-radius: 6px; display: none; font-weight: bold; font-size: 14px; background-color: #e0f2fe; border-left: 4px solid #0284c7; color: #0369a1; }
+    </style>
+</head>
+<body>
+
+    <div id="loginView">
+        <h3 style="color: #2c3e50; margin-bottom: 20px;">Sign In to TalentGlass Studio</h3>
+        <input type="text" id="username" class="input-box" placeholder="Username">
+        <input type="password" id="password" class="input-box" placeholder="Password">
+        <button type="button" class="btn" onclick="validateCredentials()">Authenticate Studio</button>
+        <p id="loginError" style="color: #e11d48; display: none; margin-top: 15px; font-weight: bold; font-size: 13px;"></p>
+    </div>
+
+    <div id="studioView" class="container">
+        <h2>🎬 Downloadable TalentGlass Studio</h2>
+        <p style="font-size: 12px; color: #64748b; margin-top: -5px; margin-bottom: 25px;">Logged in as: <strong style="color: #3b82f6;">suvanam</strong>. All video timeline renders execute natively inside device RAM.</p>
+        
+        <form id="studioForm">
+            <div class="form-group">
+                <label>AI Voice Profile Actor:</label>
+                <select id="voiceProfile">
+                    <option value="af_bella">af_bella (Female - Clean)</option>
+                    <option value="af_nicole">af_nicole (Female - Professional)</option>
+                    <option value="am_adam">am_adam (Male - Deep Narration)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Number of Presentation Slides:</label>
+                <input type="number" id="totalSlides" min="1" max="10" value="1" oninput="generateSlideRows()">
+            </div>
+
+            <div id="slidesFormWrapper"></div>
+            <button type="button" class="btn" style="background-color: #10b981; margin-top: 10px;" onclick="compileVideoOnDevice()">Compile Video Natively</button>
+        </form>
+
+        <div id="statusLogger"></div>
+    </div>
+
+    <script>
+        let ffmpegCtx = null;
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+
+        function validateCredentials() {
+            const userVal = document.getElementById("username").value;
+            const passVal = document.getElementById("password").value;
+            const errorBox = document.getElementById("loginError");
+
+            if (userVal === "suvanam" && passVal === "2026") {
+                document.getElementById("loginView").style.display = "none";
+                document.getElementById("studioView").style.display = "block";
+                generateSlideRows();
+            } else {
+                errorBox.innerText = "❌ Access Denied: Invalid parameters.";
+                errorBox.style.display = "block";
+            }
+        }
+
+        function generateSlideRows() {
+            const wrapper = document.getElementById('slidesFormWrapper');
+            const count = parseInt(document.getElementById('totalSlides').value) || 1;
+            wrapper.innerHTML = '';
+            
+            for (let i = 0; i < count; i++) {
+                const div = document.createElement('div');
+                div.className = 'slide-card';
+                div.innerHTML = `
+                    <label style="color: #64748b; font-size: 13px;">Slide ${i + 1} Script Text Natively:</label>
+                    <input type="text" class="script-input" placeholder="Type what the AI actor should speak..." required>
+                    <input type="file" class="media-input" accept="image/*" required>
+                `;
+                wrapper.appendChild(div);
+            }
+        }
+
+        async function compileVideoOnDevice() {
+            const log = document.getElementById('statusLogger');
+            log.style.display = "block";
+            log.innerHTML = "⏳ Booting device execution cores and rendering filters...";
+
+            try {
+                if (!ffmpegCtx) {
+                    // 🟢 NATIVE UNPACKING: Target the globally stable legacy wrapper definition
+                    const { createFFmpeg } = FFmpeg;
+                    ffmpegCtx = createFFmpeg({ log: true });
+                    await ffmpegCtx.load();
+                }
+
+                log.innerHTML = "🧠 Initializing AI voice matrices (Checks internal database cache first)...";
+                const ttsPipeline = await window.pipeline('text-to-speech', 'onnx-community/Kokoro-82M-ONNX', { 
+                    device: 'wasm' 
+                });
+
+                const scripts = document.querySelectorAll('.script-input');
+                const visuals = document.querySelectorAll('.media-input');
+                const count = scripts.length;
+                let partialClips = [];
+
+                for (let idx = 0; idx < count; idx++) {
+                    log.innerHTML = `⚙️ Processing Slide timelines: Rendering ${idx+1} of ${count}...`;
+                    const text = scripts[idx].value;
+                    const fileObj = visuals[idx].files[0];
+                    if (!fileObj) throw new Error(`Slide ${idx+1} is missing its asset media selection.`);
+
+                    const chosenVoice = document.getElementById("voiceProfile").value;
+                    const audioOutput = await ttsPipeline(text, { voice: chosenVoice });
+                    
+                    const rawPCM = audioOutput.audio;
+                    const sRate = audioOutput.sampling_rate;
+
+                    const wavBytes = createWavBinary(rawPCM, sRate);
+                    const rawAudioName = `raw_audio_${idx}.wav`;
+                    const mName = `input_${idx}.jpg`;
+                    const outName = `clip_${idx}.mp4`;
+
+                    ffmpegCtx.FS('writeFile', rawAudioName, wavBytes);
+                    ffmpegCtx.FS('writeFile', mName, await convertToBinaryArray(fileObj));
+
+                    const originalAudioDuration = rawPCM.length / sRate;
+                    const totalSlideDuration = 2.0 + originalAudioDuration + 2.0;
+
+                    const audioFilterString = `adelay=2000|2000,apad=whole_len=${Math.ceil(totalSlideDuration * sRate)}`;
+
+                    await ffmpegCtx.run(
+                        '-y', '-loop', '1', '-i', mName, '-i', rawAudioName,
+                        '-filter_complex', `[1:a]${audioFilterString}[padded_audio]`,
+                        '-map', '0:v:0', '-map', '[padded_audio]',
+                        '-c:v', 'libx264', '-t', String(totalSlideDuration), '-pix_fmt', 'yuv420p',
+                        '-vf', 'scale=1280:720', '-c:a', 'aac', outName
+                    );
+                    partialClips.push(outName);
+                }
+
+                log.innerHTML = "🎬 Final video compilation track exporting...";
+                await ffmpegCtx.run('-y', '-i', 'clip_0.mp4', 'final_presentation_studio.mp4'); 
+
+                const finalVideoBytes = ffmpegCtx.FS('readFile', 'final_presentation_studio.mp4');
+                const outputBlob = new Blob([finalVideoBytes.buffer], { type: 'video/mp4' });
+                const downloadLink = URL.createObjectURL(outputBlob);
+
+                log.innerHTML = "🎉 Production Complete! Saving file straight into your device storage.";
+                const anchor = document.createElement('a');
+                anchor.href = downloadLink;
+                anchor.download = "local_presentation_output.mp4";
+                anchor.click();
+
+            } catch (err) {
+                log.innerHTML = "❌ Framework Generation Exception Error: " + err.message;
+                console.error(err);
+            }
+        }
+
+        function convertToBinaryArray(file) {
+            return new Promise((resolve) => {
+                const r = new FileReader();
+                r.onload = () => resolve(new Uint8Array(r.result));
+                r.readAsArrayBuffer(file);
+            });
+        }
+
+        function createWavBinary(samples, sampleRate) {
+            const buffer = new ArrayBuffer(44 + samples.length * 2);
+            const view = new DataView(buffer);
+            const writeStr = (v, offset, str) => {
+                for (let i = 0; i < str.length; i++) v.setUint8(offset + i, str.charCodeAt(i));
+            };
+            writeStr(view, 0, 'RIFF');
+            view.setUint32(4, 36 + samples.length * 2, true);
+            writeStr(view, 8, 'WAVE');
+            writeStr(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeStr(view, 36, 'data');
+            view.setUint32(40, samples.length * 2, true);
+            let index = 44;
+            for (let i = 0; i < samples.length; i++, index += 2) {
+                let s = Math.max(-1, Math.min(1, samples[i]));
+                view.setInt16(index, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+            }
+            return new Uint8Array(buffer);
+        }
+    </script>
+</body>
+</html>
