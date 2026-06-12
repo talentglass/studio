@@ -59,15 +59,25 @@
             <div class="form-group">
                 <label>AI Voice Profile Actor:</label>
                 <select id="voiceProfile">
-                    <optgroup label="🇮🇳 Hindi Accent">
-                        <option value="hf_alpha">hf_alpha (Hindi - Female)</option>
-                        <option value="hf_beta">hf_beta (Hindi - Female)</option>
-                        <option value="hm_omega">hm_omega (Hindi - Male)</option>
-                        <option value="hm_psi">hm_psi (Hindi - Male)</option>
+                    <optgroup label="🇺🇸 American Accent - Female">
+                        <option value="af_bella" selected>af_bella (Bella - Warm & Crisp)</option>
+                        <option value="af_nicole">af_nicole (Nicole - Professional Narration)</option>
+                        <option value="af_sarah">af_sarah (Sarah - Bright & Clear)</option>
+                        <option value="af_sky">af_sky (Sky - Natural Pacing)</option>
+                        <option value="af_heart">af_heart (Heart - Premium Soft)</option>
+                        <option value="af_alloy">af_alloy (Alloy - Balanced Corporate)</option>
                     </optgroup>
-                    <optgroup label="🇺🇸 American English">
-                        <option value="af_bella" selected>af_bella (Female - Warm)</option>
-                        <option value="am_adam">am_adam (Male - Deep)</option>
+                    <optgroup label="🇺🇸 American Accent - Male">
+                        <option value="am_adam">am_adam (Adam - Deep & Authoritative)</option>
+                        <option value="am_michael">am_michael (Michael - Smooth & Clean)</option>
+                        <option value="am_echo">am_echo (Echo - Great for Shorts)</option>
+                        <option value="am_liam">am_liam (Liam - Natural Narrative)</option>
+                    </optgroup>
+                    <optgroup label="🇬🇧 British Accent">
+                        <option value="bf_emma">bf_emma (Emma - Elegant Female)</option>
+                        <option value="bf_isabella">bf_isabella (Isabella - Crisp Female)</option>
+                        <option value="bm_george">bm_george (George - Clear Male)</option>
+                        <option value="bm_lewis">bm_lewis (Lewis - Sophisticated Male)</option>
                     </optgroup>
                 </select>
             </div>
@@ -121,7 +131,7 @@
         async function compileVideoOnDevice() {
             const log = document.getElementById('statusLogger');
             log.style.display = "block";
-            log.innerHTML = "⏳ Initializing matrix processors...";
+            log.innerHTML = "⏳ Spinning up offline matrix processors...";
 
             try {
                 log.innerHTML = "🧠 Connecting to AI voice core (Checking IndexedDB)...";
@@ -134,37 +144,35 @@
                 const fileElements = document.querySelectorAll('.media-input');
                 const totalSlides = scriptElements.length;
 
-                // 🟢 1. FETCH AND BUFFER VOICE BINARY FILE
-                const voiceName = document.getElementById("voiceProfile").value;
-                log.innerHTML = `🧬 Synchronizing voice map signature structure [${voiceName}]...`;
-                const voiceResponse = await fetch(`https://cdn.jsdelivr.net/npm/kokoro-js@1.1.0/voices/${voiceName}.bin`);
+                // Fetch and Buffer Approved Voice Binary File
+                const chosenVoiceName = document.getElementById("voiceProfile").value;
+                log.innerHTML = `🧬 Synchronizing voice map signature structure [${chosenVoiceName}]...`;
+                const voiceResponse = await fetch(`https://cdn.jsdelivr.net/npm/kokoro-js@1.1.0/voices/${chosenVoiceName}.bin`);
                 if (!voiceResponse.ok) throw new Error("Voice map matrix down.");
                 const voiceBuffer = await voiceResponse.arrayBuffer();
                 const voiceFloatArray = new Float32Array(voiceBuffer);
 
                 let slideDataArray = [];
                 let overallAudioSamplesCount = 0;
-                let samplingRate = 24000; // Kokoro native sample rate
+                let samplingRate = 24000;
 
-                // 🟢 2. PROCESSING LOOP ACROSS ALL GENERATED SLIDE ENTRIES
-                for (let i = 0; i < totalSlides; i++) {
-                    const textVal = scriptElements[i].value;
-                    const fileObj = fileElements[i].files[0];
+                // 🟢 DYNAMIC SEQUENTIAL SCENE ITERATION
+                for (let idx = 0; idx < totalSlides; idx++) {
+                    const textVal = scriptElements[idx].value;
+                    const fileObj = fileElements[idx].files[0];
 
                     if (!textVal || !fileObj) {
-                        throw new Error(`Missing asset allocations inside Slide Block row ${i + 1}.`);
+                        throw new Error(`Missing asset allocations inside Slide Block row ${idx + 1}.`);
                     }
 
-                    log.innerHTML = `⚙️ Processing Slide [${i + 1}/${totalSlides}]:\n🗣️ Synthesizing narrative script track...`;
+                    log.innerHTML = `⚙️ Processing Slide [${idx + 1}/${totalSlides}]:\n🗣️ Synthesizing voice track...`;
                     
-                    // Generate specific audio clip segment
                     const audioOutput = await tts.generate(textVal, { voice: voiceFloatArray });
                     const segmentPCM = audioOutput.audio;
                     samplingRate = audioOutput.sampling_rate;
 
-                    log.innerHTML = `⚙️ Processing Slide [${i + 1}/${totalSlides}]:\n🎨 Formatting visual image layouts...`;
+                    log.innerHTML = `⚙️ Processing Slide [${idx + 1}/${totalSlides}]:\n🎨 Buffering layout image scene frame...`;
                     
-                    // Buffer image elements locally 
                     const bufferedImage = await new Promise((resolve) => {
                         const r = new FileReader();
                         r.onload = (e) => {
@@ -185,42 +193,37 @@
                     overallAudioSamplesCount += segmentPCM.length;
                 }
 
-                log.innerHTML = "🎬 Assembling masters and binding media stream layers...";
+                log.innerHTML = "🎬 Merging audio components into master timeline...";
                 
-                // 🟢 3. COMPILE AUDIO SEGMENTS INTO A SINGLE CONTEXT BUFFER
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: samplingRate });
                 const mainAudioBuffer = audioCtx.createBuffer(1, overallAudioSamplesCount, samplingRate);
                 const channelData = mainAudioBuffer.getChannelData(0);
 
                 let currentWriteOffset = 0;
-                for (let i = 0; i < slideDataArray.length; i++) {
-                    channelData.set(slideDataArray[i].pcm, currentWriteOffset);
-                    slideDataArray[i].startSampleTime = currentWriteOffset / samplingRate;
-                    currentWriteOffset += slideDataArray[i].samplesLength;
-                    slideDataArray[i].endSampleTime = currentWriteOffset / samplingRate;
+                for (let idx = 0; idx < slideDataArray.length; idx++) {
+                    channelData.set(slideDataArray[idx].pcm, currentWriteOffset);
+                    slideDataArray[idx].startSampleTime = currentWriteOffset / samplingRate;
+                    currentWriteOffset += slideDataArray[idx].samplesLength;
+                    slideDataArray[idx].endSampleTime = currentWriteOffset / samplingRate;
                 }
 
                 const totalAudioDuration = overallAudioSamplesCount / samplingRate;
 
-                // 🟢 4. CANVAS TIMELINE FRAME RENDERING INTERCEPTOR
                 const canvas = document.getElementById('renderCanvas');
                 const ctx = canvas.getContext('2d');
                 
                 function drawCanvasFrameForTime(currentTime) {
-                    // Identify which slide corresponds to the current timestamp
                     let activeSlide = slideDataArray[0];
-                    for (let i = 0; i < slideDataArray.length; i++) {
-                        if (currentTime >= slideDataArray[i].startSampleTime && currentTime <= slideDataArray[i].endSampleTime) {
-                            activeSlide = slideDataArray[i];
+                    for (let idx = 0; idx < slideDataArray.length; idx++) {
+                        if (currentTime >= slideDataArray[idx].startSampleTime && currentTime <= slideDataArray[idx].endSampleTime) {
+                            activeSlide = slideDataArray[idx];
                             break;
                         }
                     }
 
-                    // Render background fill layer
                     ctx.fillStyle = "#1e293b";
                     ctx.fillRect(0, 0, 720, 1280);
 
-                    // Resize calculations (Contain/Fit rules)
                     const img = activeSlide.img;
                     const ratio = Math.min(720 / img.width, 1280 / img.height);
                     const rW = img.width * ratio;
@@ -231,10 +234,8 @@
                     ctx.drawImage(img, oX, oY, rW, rH);
                 }
 
-                // Initialize canvas frame layout state
                 drawCanvasFrameForTime(0);
 
-                // 🟢 5. STREAM CAPTURE AND RECORDING ENGINE EXTRACTION
                 const bufferSource = audioCtx.createBufferSource();
                 bufferSource.buffer = mainAudioBuffer;
 
@@ -265,7 +266,6 @@
                     downloadAnchor.click();
                 };
 
-                // Continuous viewport draw loop running synchronously with recording duration
                 function executionViewportHeartbeat() {
                     const runningTimestampSeconds = (performance.now() - genesisTime) / 1000;
                     drawCanvasFrameForTime(runningTimestampSeconds);
@@ -276,7 +276,6 @@
                 bufferSource.start(0);
                 executionViewportHeartbeat();
 
-                // Safe cut off point once timeline runs out
                 setTimeout(() => {
                     recorder.stop();
                     audioCtx.close();
